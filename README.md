@@ -29,6 +29,7 @@ Sau đó mở `http://localhost:3001`.
 - Toàn bộ phòng nhạc được nén trong một viewport điện thoại, không cần cuộn dọc; Top 6+ chạy tự động theo băng chuyền ngang.
 - Thanh phát nhạc hỗ trợ phát/tạm dừng, tua ±10 giây, chuyển bài, kéo tiến trình và điều chỉnh/tắt âm lượng.
 - Bài trùng `videoId` hoặc tiêu đề chuẩn hóa được cộng thêm vote thay vì tạo hàng mới.
+- Tìm kiếm phân tích nhiều kết quả YouTube, ưu tiên tên khớp chính xác, loại biến thể ngoài yêu cầu (cover/remix/karaoke...) và chọn video có lượt xem cao nhất trong nhóm phù hợp.
 - Khi bài hiện tại kết thúc, bài có vote cao nhất được phát tiếp.
 - Khi hàng đợi TikTok trống, ứng dụng tự xoay vòng `public/data/default.json`.
 - Tìm YouTube hoạt động không cần API key. Có thể đặt `YOUTUBE_API_KEY` để dùng YouTube Data API chính thức.

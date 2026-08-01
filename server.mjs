@@ -73,23 +73,136 @@ function normalizeTitle(value = "") {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
-    .replace(/\([^)]*(official|audio|mv|lyrics?|video)[^)]*\)/g, "")
+    .replace(/&amp;/g, " and ")
+    .replace(/\b(official\s*(music\s*)?video|official\s*audio|music\s*video|lyric\s*video|lyrics?|visualizer|mv|audio)\b/g, " ")
     .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
     .trim()
 }
 
-function findFirstVideoRenderer(value) {
-  if (!value || typeof value !== "object") return null
-  if (value.videoRenderer?.videoId) return value.videoRenderer
-  for (const child of Object.values(value)) {
-    const found = findFirstVideoRenderer(child)
-    if (found) return found
+function findVideoRenderers(value, results = [], seen = new Set()) {
+  if (!value || typeof value !== "object" || results.length >= 30) return results
+  if (value.videoRenderer?.videoId && !seen.has(value.videoRenderer.videoId)) {
+    seen.add(value.videoRenderer.videoId)
+    results.push(value.videoRenderer)
   }
-  return null
+  for (const child of Object.values(value)) {
+    findVideoRenderers(child, results, seen)
+    if (results.length >= 30) break
+  }
+  return results
 }
 
 function readRuns(value) {
   return value?.simpleText || value?.runs?.map((run) => run.text).join("") || ""
+}
+
+function decodeText(value = "") {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&#x27;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+}
+
+function parseViewCount(value = "") {
+  const text = value.toLowerCase().replace(/\u00a0/g, " ").trim()
+  const match = text.match(/([\d.,]+)\s*(k|m|b|n|tr|trieu|ty|tỷ)?/i)
+  if (!match) return 0
+
+  const suffix = match[2]?.toLowerCase()
+  if (!suffix) return Number(match[1].replace(/\D/g, "")) || 0
+
+  const number = Number(match[1].replace(/,/g, ".")) || 0
+  const multiplier = {
+    k: 1_000,
+    n: 1_000,
+    m: 1_000_000,
+    tr: 1_000_000,
+    trieu: 1_000_000,
+    b: 1_000_000_000,
+    ty: 1_000_000_000,
+    "tỷ": 1_000_000_000,
+  }[suffix] || 1
+  return Math.round(number * multiplier)
+}
+
+function isoDurationToClock(value = "") {
+  const match = value.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/)
+  if (!match) return "YouTube"
+  const hours = Number(match[1] || 0)
+  const minutes = Number(match[2] || 0)
+  const seconds = Number(match[3] || 0)
+  return hours
+    ? `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+    : `${minutes}:${String(seconds).padStart(2, "0")}`
+}
+
+const UNREQUESTED_VARIANTS = [
+  "cover",
+  "remix",
+  "karaoke",
+  "instrumental",
+  "sped up",
+  "speed up",
+  "slowed",
+  "reverb",
+  "nightcore",
+  "live",
+  "reaction",
+  "vietsub",
+  "lofi",
+  "mashup",
+  "loop",
+]
+
+function scoreSearchCandidate(query, candidate) {
+  const normalizedQuery = normalizeTitle(query)
+  const normalizedTitle = normalizeTitle(candidate.title)
+  const queryTokens = [...new Set(normalizedQuery.split(" ").filter(Boolean))]
+  const titleTokens = new Set(normalizedTitle.split(" ").filter(Boolean))
+  const shared = queryTokens.filter((token) => titleTokens.has(token)).length
+  const recall = queryTokens.length ? shared / queryTokens.length : 0
+  const precision = titleTokens.size ? shared / titleTokens.size : 0
+
+  let variantPenalty = 0
+  let score = recall * 60 + precision * 22
+  if (normalizedTitle === normalizedQuery) score += 12
+  else if (normalizedTitle.includes(normalizedQuery)) score += 28
+  else if (normalizedQuery.includes(normalizedTitle) && normalizedTitle.length >= 4) score += 14
+
+  const rawQuery = normalizeTitle(query.replace(/official|audio|video/gi, ""))
+  const rawTitle = normalizeTitle(candidate.title.replace(/official|audio|video/gi, ""))
+  if (rawTitle.startsWith(rawQuery)) score += 6
+
+  for (const variant of UNREQUESTED_VARIANTS) {
+    const normalizedVariant = normalizeTitle(variant)
+    if (normalizedTitle.includes(normalizedVariant) && !normalizedQuery.includes(normalizedVariant)) {
+      variantPenalty += 1
+      score -= 18
+    }
+  }
+
+  if (/\b(topic|official)\b/i.test(candidate.author || "")) score += 3
+  return { score: Math.max(0, score), recall, variantPenalty }
+}
+
+function selectBestCandidate(query, candidates) {
+  if (!candidates.length) return null
+  const scored = candidates.map((candidate) => {
+    const ranking = scoreSearchCandidate(query, candidate)
+    return { ...candidate, searchScore: ranking.score, queryRecall: ranking.recall, variantPenalty: ranking.variantPenalty }
+  })
+  const bestScore = Math.max(...scored.map((candidate) => candidate.searchScore))
+  const accurate = scored.filter((candidate) => candidate.queryRecall >= 0.8 && candidate.searchScore >= 48)
+  const cleanAccurate = accurate.filter((candidate) => candidate.variantPenalty === 0)
+  const nearBest = scored.filter((candidate) => candidate.searchScore >= Math.max(38, bestScore - 10))
+  const pool = cleanAccurate.length ? cleanAccurate : accurate.length ? accurate : nearBest.length ? nearBest : scored
+
+  return pool.sort(
+    (a, b) => b.viewCount - a.viewCount || b.searchScore - a.searchScore,
+  )[0]
 }
 
 function extractInitialData(html) {
@@ -122,29 +235,50 @@ async function searchWithDataApi(query) {
   if (!process.env.YOUTUBE_API_KEY) return null
   const params = new URLSearchParams({
     part: "snippet",
-    maxResults: "1",
+    maxResults: "20",
     type: "video",
     q: query,
+    order: "relevance",
+    regionCode: "VN",
+    relevanceLanguage: "vi",
+    videoEmbeddable: "true",
     key: process.env.YOUTUBE_API_KEY,
   })
   const response = await fetch(`https://www.googleapis.com/youtube/v3/search?${params}`)
   if (!response.ok) throw new Error("YouTube Data API từ chối yêu cầu")
-  const item = (await response.json()).items?.[0]
-  if (!item) return null
-  return {
-    videoId: item.id.videoId,
-    title: item.snippet.title,
-    author: item.snippet.channelTitle,
-    thumbnailUrl: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.medium?.url,
-    duration: "YouTube",
-  }
+  const items = (await response.json()).items || []
+  if (!items.length) return null
+
+  const ids = items.map((item) => item.id.videoId).filter(Boolean)
+  const detailsParams = new URLSearchParams({
+    part: "statistics,contentDetails",
+    id: ids.join(","),
+    key: process.env.YOUTUBE_API_KEY,
+  })
+  const detailsResponse = await fetch(`https://www.googleapis.com/youtube/v3/videos?${detailsParams}`)
+  if (!detailsResponse.ok) throw new Error("Không đọc được lượt xem YouTube")
+  const detailsById = new Map(
+    ((await detailsResponse.json()).items || []).map((item) => [item.id, item]),
+  )
+
+  return selectBestCandidate(query, items.map((item) => {
+    const details = detailsById.get(item.id.videoId)
+    return {
+      videoId: item.id.videoId,
+      title: decodeText(item.snippet.title),
+      author: decodeText(item.snippet.channelTitle),
+      thumbnailUrl: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.medium?.url,
+      duration: isoDurationToClock(details?.contentDetails?.duration),
+      viewCount: Number(details?.statistics?.viewCount || 0),
+    }
+  }))
 }
 
 async function searchYouTube(query) {
   const apiResult = await searchWithDataApi(query)
   if (apiResult) return apiResult
 
-  const params = new URLSearchParams({ search_query: `${query} official audio`, hl: "vi", gl: "VN" })
+  const params = new URLSearchParams({ search_query: query, hl: "vi", gl: "VN" })
   const response = await fetch(`https://www.youtube.com/results?${params}`, {
     headers: {
       "accept-language": "vi-VN,vi;q=0.9,en;q=0.8",
@@ -152,17 +286,24 @@ async function searchYouTube(query) {
     },
   })
   if (!response.ok) throw new Error("Không thể kết nối tới YouTube")
-  const renderer = findFirstVideoRenderer(extractInitialData(await response.text()))
-  if (!renderer) throw new Error(`Không tìm thấy “${query}” trên YouTube`)
-  const videoId = renderer.videoId
-  const thumbnails = renderer.thumbnail?.thumbnails || []
-  return {
-    videoId,
-    title: readRuns(renderer.title) || query,
-    author: readRuns(renderer.ownerText) || readRuns(renderer.longBylineText) || "YouTube",
-    thumbnailUrl: thumbnails.at(-1)?.url || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
-    duration: readRuns(renderer.lengthText) || "YouTube",
-  }
+  const renderers = findVideoRenderers(extractInitialData(await response.text()))
+  if (!renderers.length) throw new Error(`Không tìm thấy “${query}” trên YouTube`)
+
+  const candidates = renderers.map((renderer) => {
+    const thumbnails = renderer.thumbnail?.thumbnails || []
+    const fullViews = readRuns(renderer.viewCountText)
+    const shortViews = readRuns(renderer.shortViewCountText)
+    return {
+      videoId: renderer.videoId,
+      title: decodeText(readRuns(renderer.title) || query),
+      author: decodeText(readRuns(renderer.ownerText) || readRuns(renderer.longBylineText) || "YouTube"),
+      thumbnailUrl: thumbnails.at(-1)?.url || `https://i.ytimg.com/vi/${renderer.videoId}/hqdefault.jpg`,
+      duration: readRuns(renderer.lengthText) || "YouTube",
+      viewCount: parseViewCount(fullViews) || parseViewCount(shortViews),
+    }
+  })
+
+  return selectBestCandidate(query, candidates)
 }
 
 async function addSongRequest(query, user = {}) {
