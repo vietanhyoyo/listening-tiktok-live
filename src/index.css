@@ -376,10 +376,38 @@ main {
 .player-progress input::-moz-range-progress { height: 3px; border-radius: 10px; background: var(--primary); }
 .player-progress input::-moz-range-thumb { width: 7px; height: 7px; border: 2px solid #fff; border-radius: 50%; background: var(--primary); }
 
-.player-time { margin-top: -7px; }
-.volume-control { display: flex; width: 85px; align-items: center; gap: 4px; }
-.volume-control > button { display: grid; flex: none; width: 15px; height: 15px; place-items: center; border: 0; padding: 0; background: transparent; color: inherit; }
-.volume-control svg { width: 11px; }
+
+.volume-control {
+  display: grid;
+  width: 85px;
+  height: 15px;
+  grid-template-columns: 15px minmax(0, 1fr);
+  align-items: center;
+  gap: 4px;
+}
+.volume-control > button {
+  display: grid;
+  width: 15px;
+  height: 18px;
+  place-items: center;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  line-height: 0;
+}
+.volume-control svg {
+  display: block;
+  width: 11px;
+  height: 11px;
+  transform: translateY(-1px);
+}
+.volume-control input {
+  display: block;
+  min-width: 0;
+  height: 15px;
+  padding: 0;
+}
 .volume-control input::-webkit-slider-runnable-track { height: 2px; border-radius: 10px; background: linear-gradient(to right, #8e7d73 var(--volume), #ddd3c8 var(--volume)); }
 .volume-control input::-webkit-slider-thumb { width: 7px; height: 7px; margin-top: -2.5px; appearance: none; border-radius: 50%; background: #6f5f56; }
 .volume-control input::-moz-range-track { height: 2px; background: #ddd3c8; }
@@ -426,7 +454,7 @@ main {
 
 .section-heading.compact { margin: 8px 0 5px; }
 .section-heading.compact h2 { font-size: 14px; }
-.song-total { font-size: 8px; }
+.song-total { font-size: 12px; }
 .queue-section { padding-right: 0; }
 .queue-section .section-heading { padding-right: 10px; }
 .queue-marquee { width: 100%; overflow: hidden; mask-image: linear-gradient(to right, transparent, #000 5%, #000 95%, transparent); }
