@@ -250,7 +250,7 @@ function ConnectDialog({ open, onOpenChange, live, onConnect, onDisconnect }) {
             {live.connected ? (
               <>Đang nhận bình luận từ <b>@{live.uniqueId}</b>. Bạn có thể ngắt kết nối ngay bên dưới.</>
             ) : (
-              <>Nhập ID của tài khoản đang live. Mọi bình luận bắt đầu bằng <b>@Tên bài hát</b> sẽ được tìm trên YouTube và đưa vào bảng xếp hạng.</>
+              <>Nhập ID của tài khoản đang live. Mọi bình luận theo cú pháp <b>[Tên bài hát]</b> sẽ được tìm trên YouTube và đưa vào bảng xếp hạng.</>
             )}
           </DialogDescription>
         </DialogHeader>
@@ -437,7 +437,7 @@ function App() {
           <span><Music2 /></span>
           <div>
             <p>nhập tên bài hát để thêm vào danh sách</p>
-            <strong>Comment <b>@Tên bài hát</b> trên TikTok Live</strong>
+            <strong>Comment <b>[Tên bài hát]</b> trên TikTok Live</strong>
           </div>
           <ChevronRight />
         </section>

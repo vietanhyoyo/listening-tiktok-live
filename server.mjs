@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url"
 import express from "express"
 import { Server as SocketServer } from "socket.io"
 import { ControlEvent, TikTokLiveConnection, WebcastEvent } from "tiktok-live-connector"
+import { extractSongRequest } from "./song-request.mjs"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = Number(process.env.PORT || 3001)
@@ -307,7 +308,7 @@ async function searchYouTube(query) {
 }
 
 async function addSongRequest(query, user = {}) {
-  const cleanQuery = query.trim().replace(/^@+\s*/, "").slice(0, 120)
+  const cleanQuery = query.trim().slice(0, 120)
   if (cleanQuery.length < 2) return
 
   const queryKey = normalizeTitle(cleanQuery)
@@ -380,10 +381,9 @@ async function connectTikTok(input) {
   liveConnection = connection
 
   connection.on(WebcastEvent.CHAT, (data) => {
-    const comment = String(data.comment || "").trim()
-    const match = comment.match(/^@\s*(.{2,})$/u)
-    if (!match) return
-    addSongRequest(match[1], {
+    const query = extractSongRequest(data.comment)
+    if (!query) return
+    addSongRequest(query, {
       uniqueId: data.user?.uniqueId,
       userId: data.user?.userId,
       nickname: data.user?.nickname,

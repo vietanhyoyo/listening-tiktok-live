@@ -5,7 +5,7 @@ ON AIR là ứng dụng phát nhạc tương tác dành cho các buổi TikTok L
 ## Tính năng
 
 - Kết nối với phiên TikTok Live bằng TikTok username hoặc đường dẫn hồ sơ.
-- Nhận yêu cầu bài hát từ bình luận theo cú pháp `@Tên bài hát`.
+- Nhận yêu cầu bài hát từ bình luận theo cú pháp `[Tên bài hát]`.
 - Tìm kiếm bài hát trên YouTube và chỉ phát phần âm thanh trong giao diện.
 - Tự gộp các yêu cầu trùng bài thành lượt bình chọn thay vì thêm nhiều bản sao vào hàng đợi.
 - Sắp xếp hàng đợi theo số lượt bình chọn; bài có lượt yêu cầu cao nhất sẽ được phát tiếp.
@@ -43,7 +43,7 @@ Sau đó mở `http://localhost:3001`.
 
 1. Mở ứng dụng và nhấn phím `Q` để mở hộp kết nối TikTok Live.
 2. Nhập TikTok username hoặc dán đường dẫn hồ sơ TikTok của tài khoản đang live.
-3. Người xem bình luận theo cú pháp `@Tên bài hát`, ví dụ: `@Nàng thơ`.
+3. Người xem bình luận theo cú pháp `[Tên bài hát]`, ví dụ: `[Nàng thơ]`.
 4. Bài hát được tìm trên YouTube, thêm vào hàng đợi hoặc cộng thêm lượt bình chọn nếu đã tồn tại.
 5. Khi bài hiện tại kết thúc, hệ thống phát bài có số lượt bình chọn cao nhất.
 
